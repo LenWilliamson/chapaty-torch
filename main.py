@@ -1,5 +1,5 @@
 import sys
-import os
+from typing import Optional
 import df_schema as schema
 import pandas as pd
 from functools import partial
@@ -34,8 +34,14 @@ def plot_ohlc(path: str) -> None:
     )
     fig_ohlc.show()
 
-def plot_price_histogram_vertically(path: str) -> None:
+def round_price_histogram_by(df: pd.DataFrame, factor: int) -> pd.DataFrame:
+    df['px'] = (df['px'] / factor).round() * factor
+    return df.groupby('px')['qx'].max().reset_index()
+
+def plot_price_histogram_vertically(path: str, round_factor: Optional[int]) -> None:
     df_vol = csv_to_df(path)
+    if round_factor:
+        df_vol = round_price_histogram_by(df_vol, round_factor)
     fig_volume = go.Figure(
         data=[
             go.Bar(
@@ -65,8 +71,10 @@ def plot_price_histogram_vertically(path: str) -> None:
     )
     fig_volume.show()
 
-def plot_price_histogram_horizontally(path: str) -> None:
+def plot_price_histogram_horizontally(path: str, round_factor: Optional[int]) -> None:
     df_vol = csv_to_df(path)
+    if round_factor:
+        df_vol = round_price_histogram_by(df_vol, round_factor)
     fig_volume_h = go.Figure(
         data=[
             go.Bar(
@@ -97,11 +105,13 @@ def plot_price_histogram_horizontally(path: str) -> None:
     fig_volume_h.show()
 
 
-def plot_ohlc_with_price_histogram_horizontally(ohlc_path: str, price_histogram_path: str) -> None:
+def plot_ohlc_with_price_histogram_horizontally(ohlc_path: str, price_histogram_path: str, round_factor: Optional[int]) -> None:
     df_ohlc = csv_to_df(ohlc_path)
     df_ohlc[schema.OHLC_CN['openTime']] = df_ohlc[schema.OHLC_CN['openTime']].map(
         partial(posix_to_homan_readable_timestamp))
     df_vol = csv_to_df(price_histogram_path)
+    if round_factor:
+        df_vol = round_price_histogram_by(df_vol, round_factor)
     fig = go.Figure(
         data=[
             go.Candlestick(
@@ -157,12 +167,18 @@ def plot_ohlc_with_price_histogram_horizontally(ohlc_path: str, price_histogram_
 
 
 def main() -> int:
-    ohlc_path = 'gs://chapaty-ai-hdb-test/cme/ohlc/ohlc_data_for_tpo_test.csv'
-    price_histogram_path = 'gs://chapaty-ai-test/ppp/_test_data_files/target_ohlc_tpo_for_tpo_test.csv'
+    cme_ohlc_path = 'gs://chapaty-ai-hdb-test/cme/ohlc/ohlc_data_for_tpo_test.csv'
+    cme_price_histogram_path = 'gs://chapaty-ai-test/ppp/_test_data_files/target_ohlc_tpo_for_tpo_test.csv'
+    binance_ohlc_path = 'gs://chapaty-ai-hdb-test/binance/ohlcv/ohlc_data_for_tpo_test.csv'
+    binance_price_histogram_path = 'gs://chapaty-ai-test/ppp/btcusdt/2022/Mon1h0m-Fri23h0m/1d/target_binance_tpo_from_ohlc.csv'
+    ohlc_path = binance_ohlc_path
+    price_histogram_path = binance_price_histogram_path
+    round_factor = 8
+
     plot_ohlc(ohlc_path)
-    plot_price_histogram_vertically(price_histogram_path)
-    plot_price_histogram_horizontally(price_histogram_path)
-    plot_ohlc_with_price_histogram_horizontally(ohlc_path, price_histogram_path)
+    plot_price_histogram_vertically(price_histogram_path, round_factor)
+    plot_price_histogram_horizontally(price_histogram_path, round_factor)
+    plot_ohlc_with_price_histogram_horizontally(ohlc_path, price_histogram_path, round_factor)
     return 0
 
 
